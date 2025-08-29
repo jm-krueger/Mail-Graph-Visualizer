@@ -61,8 +61,8 @@ neato -n2 -Tpng mail_graph.dot -o mail_graph.png
 ---
 
 ## Example
+<img width="601" height="466" alt="image" src="https://github.com/user-attachments/assets/00de25ad-39bb-405d-b662-b18df033c71e" />
 
-<img width="665" height="697" alt="image" src="https://github.com/user-attachments/assets/6de6af8e-c0e6-4dd9-9a6c-a644f5ecdca1" />
 
 
 
