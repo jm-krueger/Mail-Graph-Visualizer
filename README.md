@@ -1,4 +1,4 @@
-# Mail Graph Generator
+# Mail Graph Visualizer
 
 This project extracts metadata from Outlook `.msg` files and builds a graph of senders and recipients.  
 It outputs a **Graphviz `.dot` file** with a **Fruchterman–Reingold (spring) layout** baked in, so you can visualize the communication structure.
