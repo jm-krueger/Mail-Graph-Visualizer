@@ -1,11 +1,3 @@
-﻿# save as: MsgDotTest.py
-# usage (no args needed):
-#   python "C:/Users/go25vol/Downloads/MsgDotTest.py"
-#   neato -n2 -Tsvg out.dot -o out.svg
-#
-# Writes a DOT with FR coordinates and domain-colored nodes (no labels).
-# First two domains are colored RED and BLUE (in that order), others follow a palette.
-
 import os, re, sys
 import networkx as nx
 from collections import Counter
