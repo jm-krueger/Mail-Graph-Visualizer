@@ -5,16 +5,14 @@ from collections import Counter
 try:
     import extract_msg
 except ImportError:
-    print("Please: pip install extract-msg python-dateutil extract-msg", file=sys.stderr)
+    print("Please: pip install networkx extract-msg python-dateutil", file=sys.stderr)
     sys.exit(1)
 
-# === Hardcoded defaults (adjust if you like) ===
-DEFAULT_INPUT  = r"C:\Users\go25vol\OneDrive - TUM\Github\AImAT\cartel-detector\mails\0_inbox_raw"
-DEFAULT_OUTPUT = "out.dot"
-DEFAULT_MIN_COUNT = 1
+# === Defaults ===
+DEFAULT_OUTPUT = "mail_graph.dot"
 FR_SEED = 42
 SCALE  = 1000.0  # scale FR coordinates to DOT space
-# ==============================================
+# =================
 
 # 10-color palette (first two are enforced red, blue as required)
 # Remaining 8 are pleasant distinct colors.
@@ -126,9 +124,33 @@ def assign_domain_colors(nodes):
         mapping[dom] = color
     return mapping
 
-def write_dot(out_path, H, pos, min_count=DEFAULT_MIN_COUNT):
-    deg = dict(H.degree())
+def write_dot(out_path, H, pos, min_count=1):
+    # Node strength = total correspondence volume (sum of incident edge weights)
+    strength = dict(H.degree(weight="weight"))
     domain_color = assign_domain_colors(H.nodes())
+
+    # Normalize node sizes
+    if strength:
+        s_vals = list(strength.values())
+        s_min, s_max = min(s_vals), max(s_vals)
+        s_range = (s_max - s_min) or 1.0
+    else:
+        s_min, s_range = 0.0, 1.0
+    node_min, node_max = 0.18, 0.90  # inches
+
+    # Edge penwidth/transparency scaling by weight
+    e_weights = [d.get("weight", 1) for _, _, d in H.edges(data=True)]
+    if e_weights:
+        w_min, w_max = min(e_weights), max(e_weights)
+        w_range = (w_max - w_min) or 1.0
+    else:
+        w_min, w_range = 1.0, 1.0
+    edge_min, edge_max = 0.5, 3.0
+    # Alpha range: compress more; keep even strong edges fairly transparent
+    alpha_min, alpha_max = 50, 90  # 0..255
+
+    # Node transparency scaling by correspondence volume (strength)
+    node_alpha_min, node_alpha_max = 140, 255  # 0..255 (small nodes more transparent)
 
     with open(out_path, "w", encoding="utf-8") as f:
         f.write("graph EmailGraph {\n")
@@ -142,17 +164,27 @@ def write_dot(out_path, H, pos, min_count=DEFAULT_MIN_COUNT):
         f.write('  node [shape=circle, style=filled, label="", color=none];\n')
         f.write('  edge [color="#B0B0B0", penwidth=0.5];\n')
 
-        # Nodes with fixed FR positions, sized by degree, colored by domain
+        # Nodes: fixed positions, sized by correspondence volume, colored by domain (with alpha)
         for n, (x, y) in pos.items():
             dom = domain_of(n)
-            col = domain_color.get(dom, "#BDBDBD")
-            size = max(0.12, deg.get(n, 1) * 0.05)  # inches; fixedsize circles
-            # use fixedsize=true so width is respected; pos uses "!"
+            base = domain_color.get(dom, "#BDBDBD")
+            s = strength.get(n, 0.0)
+            size = node_min + ((s - s_min) / s_range) * (node_max - node_min)
+            na = int(node_alpha_min + ((s - s_min) / s_range) * (node_alpha_max - node_alpha_min))
+            na = max(0, min(255, na))
+            # Append alpha to base color (#RRGGBB -> #RRGGBBAA)
+            col = f"{base}{na:02X}"
             f.write(f'  "{n}" [pos="{x:.2f},{y:.2f}!", fixedsize=true, width={size:.2f}, fillcolor="{col}"];\n')
 
-        # Edges (undirected)
-        for u, v in H.edges():
-            f.write(f'  "{u}" -- "{v}";\n')
+        # Edges: width encodes correspondence weight; color uses RGBA with weight-based alpha
+        for u, v, d in H.edges(data=True):
+            w = d.get("weight", 1)
+            pen = edge_min + ((w - w_min) / w_range) * (edge_max - edge_min)
+            a = int(alpha_min + ((w - w_min) / w_range) * (alpha_max - alpha_min))
+            a = max(0, min(255, a))
+            # Base gray edge color with alpha
+            col = f"#707070{a:02X}"
+            f.write(f'  "{u}" -- "{v}" [penwidth={pen:.2f}, color="{col}"];\n')
 
         f.write("}\n")
 
@@ -162,6 +194,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("input_folder", nargs="?", help="Folder containing .msg files")
     ap.add_argument("out_folder", nargs="?", help="Folder where mail_graph.dot will be saved")
+    # Optional flags for convenience
+    ap.add_argument("-i", "--input", dest="input_folder", help="Folder containing .msg files")
+    ap.add_argument("-o", "--out", dest="out_folder", help="Folder to save outputs (DOT)")
     ap.add_argument("--min-count", type=int, default=1)
     args = ap.parse_args()
 
@@ -175,12 +210,11 @@ def main():
     args.input_folder = clean_path(args.input_folder)
     args.out_folder = clean_path(args.out_folder)
 
-    # Ensure output folder exists
+    # Ensure output folder exists (create if missing)
     if not os.path.isdir(args.out_folder):
-        print(f"Output folder does not exist: {args.out_folder}", file=sys.stderr)
-        sys.exit(3)
+        os.makedirs(args.out_folder, exist_ok=True)
 
-    out_dot = os.path.join(args.out_folder, "mail_graph.dot")
+    out_dot = os.path.join(args.out_folder, DEFAULT_OUTPUT)
 
     paths = scan_msgs(args.input_folder)
     print(f"Scanning: {args.input_folder}")
@@ -197,7 +231,7 @@ def main():
         sys.exit(3)
 
     write_dot(out_dot, H, pos, min_count=args.min_count)
-    print(f"\n✅ Wrote {out_dot}\nRender with:\n  neato -n2 -Tsvg {out_dot} -o mail_graph.svg")
+    print(f"\n? Wrote {out_dot}\nRender with:\n  neato -n2 -Tsvg {out_dot} -o mail_graph.svg")
 
 
 if __name__ == "__main__":
