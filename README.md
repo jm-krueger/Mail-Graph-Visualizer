@@ -29,7 +29,7 @@ It outputs a **Graphviz `.dot` file** with a **Fruchterman–Reingold (spring) l
 Run the script:
 
 ```bash
-python MsgDotTest.py
+python mail-graph-visualizer.py
 ```
 
 You’ll be prompted for:
