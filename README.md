@@ -65,7 +65,4 @@ neato -n2 -Tpng mail_graph.dot -o mail_graph.png
 <img width="665" height="697" alt="image" src="https://github.com/user-attachments/assets/6de6af8e-c0e6-4dd9-9a6c-a644f5ecdca1" />
 
 
----
 
-## License
-MIT
